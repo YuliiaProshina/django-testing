@@ -1,10 +1,9 @@
-from datetime import timedelta
-
 import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.utils import timezone
-from news.models import Comment, News
+
+from news.forms import CommentForm
+from news.models import News
 
 User = get_user_model()
 
@@ -26,12 +25,7 @@ def test_home_news_order(client, home_url, all_news):
     assert all_dates == sorted(all_dates, reverse=True)
 
 
-def test_detail_comments_order(client, detail_url, news, author):
-    for i in range(10):
-        comment = Comment.objects.create(news=news, author=author,
-                                         text=f'Текст {i}')
-        comment.created = timezone.now() + timedelta(days=i)
-        comment.save()
+def test_detail_comments_order(client, detail_url):
     response = client.get(detail_url)
     assert 'news' in response.context
     news_from_context = response.context['news']
@@ -48,3 +42,4 @@ def test_detail_anonymous_client_has_no_form(client, detail_url):
 def test_autorized_client_can_create_comment(author_client, detail_url):
     response = author_client.get(detail_url)
     assert 'form' in response.context
+    assert isinstance(response.context['form'], CommentForm)

@@ -4,6 +4,8 @@ import pytest
 from django.conf import settings
 from django.test.client import Client
 from django.urls import reverse
+from django.utils import timezone
+
 from news.models import Comment, News
 
 
@@ -58,15 +60,14 @@ def detail_url(news):
 
 @pytest.fixture
 def all_news():
-    items = [
+    News.objects.bulk_create([
         News(
             title=f'Новость {i}',
             text='Просто текст',
             date=datetime.today() - timedelta(days=i),
         )
         for i in range(settings.NEWS_COUNT_ON_HOME_PAGE + 1)
-    ]
-    return items
+    ])
 
 
 @pytest.fixture
@@ -92,3 +93,12 @@ def logout_url():
 @pytest.fixture
 def signup_url():
     return reverse('users:signup')
+
+
+@pytest.fixture
+def comments_for_news(news, author):
+    for i in range(10):
+        comment = Comment.objects.create(news=news, author=author,
+                                         text=f'Текст {i}')
+        comment.created = timezone.now() + timedelta(days=i)
+        comment.save()
