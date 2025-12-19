@@ -1,9 +1,9 @@
 from http import HTTPStatus
 
-from notes.forms import WARNING
-from notes.models import Note
 from pytils.translit import slugify
 
+from notes.forms import WARNING
+from notes.models import Note
 from .test_utils import TestNote
 
 
@@ -17,11 +17,12 @@ class TestNoteCreation(TestNote):
         self.assertEqual(notes_count_after, notes_count_before)
 
     def test_authorized_client_can_add_note(self):
+        Note.objects.all().delete()
         notes_count_before = Note.objects.count()
         data = {'title': 'Заголовок', 'text': 'Текст заметки'}
         self.author_client.post(self.add_url, data=data)
         notes_count_after = Note.objects.count()
-        note = Note.objects.get(title=data['title'])
+        note = Note.objects.get()
         self.assertEqual(notes_count_after, notes_count_before + 1)
         self.assertEqual(note.title, data['title'])
         self.assertEqual(note.text, data['text'])
@@ -29,17 +30,15 @@ class TestNoteCreation(TestNote):
 
     def test_notes_slug_dublication_prohibited(self):
         notes_count_before = Note.objects.count()
-        data = {'title': 'Заголовок', 'text': 'Текст заметки',
-                'slug': 'test_slug'}
-        first_response = self.author_client.post(self.add_url, data=data)
-        self.assertEqual(first_response.status_code, HTTPStatus.FOUND)
-        self.assertEqual(Note.objects.count(), notes_count_before + 1)
-        second_response = self.author_client.post(self.add_url, data=data)
+        note = Note.objects.get()
+        second_response = self.author_client.post(self.add_url, data={
+            'title': self.note.title, 'text': self.note.text,
+            'slug': self.note.slug})
         self.assertEqual(second_response.status_code, HTTPStatus.OK)
-        self.assertEqual(Note.objects.count(), notes_count_before + 1)
+        self.assertEqual(Note.objects.count(), notes_count_before)
         form = second_response.context['form']
         self.assertFormError(form=form, field='slug',
-                             errors=f'{data['slug']}{WARNING}')
+                             errors=f'{note.slug}{WARNING}')
 
     def test_author_can_delete_note(self):
         notes_count_before = Note.objects.count()
@@ -48,14 +47,17 @@ class TestNoteCreation(TestNote):
         self.assertEqual(notes_count_after, notes_count_before - 1)
 
     def test_author_can_edit_note(self):
-        previuos_note = Note.objects.get(slug=self.note.slug)
-        data = {'title': 'New title', 'text': self.note.text,
-                'slug': self.note.slug}
+        data = {'title': 'New title', 'text': 'New text',
+                'slug': 'new-slug'}
         self.author_client.post(self.edit_url, data=data)
-        note = Note.objects.get(pk=self.note.pk)
-        self.assertNotEqual(previuos_note.title, note.title)
-        self.assertEqual(previuos_note.text, note.text)
-        self.assertEqual(previuos_note.author, note.author)
+        updated_note = Note.objects.get(pk=self.note.pk)
+        self.assertNotEqual(self.note.title, updated_note.title)
+        self.assertNotEqual(self.note.text, updated_note.text)
+        self.assertNotEqual(self.note.slug, updated_note.slug)
+        self.assertEqual(updated_note.title, data['title'])
+        self.assertEqual(updated_note.text, data['text'])
+        self.assertEqual(updated_note.slug, data['slug'])
+        self.assertEqual(updated_note.author, self.note.author)
 
     def test_user_cant_delete_another_author_note(self):
         notes_count_before = Note.objects.count()
@@ -64,19 +66,20 @@ class TestNoteCreation(TestNote):
         self.assertEqual(notes_count_after, notes_count_before)
 
     def test_user_cant_edit_another_author_note(self):
-        previuos_note = Note.objects.get(slug=self.note.slug)
-        data = {'title': 'New title', 'text': self.note.text,
-                'slug': self.note.slug}
+        data = {'title': 'New title', 'text': 'New text',
+                'slug': 'new-slug'}
         self.another_client.post(self.edit_url, data=data)
-        note = Note.objects.get(pk=self.note.pk)
-        self.assertEqual(previuos_note.title, note.title)
-        self.assertEqual(previuos_note.text, note.text)
-        self.assertEqual(previuos_note.author, note.author)
+        updated_note = Note.objects.get(pk=self.note.pk)
+        self.assertEqual(updated_note.title, self.note.title)
+        self.assertEqual(updated_note.text, self.note.text)
+        self.assertEqual(updated_note.slug, self.note.slug)
+        self.assertEqual(updated_note.author, self.note.author)
 
     def test_slug_autocreated_when_no_passed(self):
+        Note.objects.all().delete()
         notes_before = Note.objects.count()
         data = {'title': 'Заголовок', 'text': 'Текст заметки'}
         self.author_client.post(self.add_url, data=data)
         self.assertEqual(Note.objects.count(), notes_before + 1)
-        note = Note.objects.get(author=self.author, title=data['title'])
+        note = Note.objects.get()
         self.assertEqual(note.slug, slugify(data['title']))

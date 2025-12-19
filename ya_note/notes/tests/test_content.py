@@ -1,5 +1,4 @@
 from notes.forms import NoteForm
-
 from .test_utils import TestNote
 
 
